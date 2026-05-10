@@ -1,122 +1,100 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
-import heroImg from './assets/hero.png'
-import './App.css'
+import React, { useState, useEffect } from 'react';
+import _ from 'lodash'; // Anti-pattern: importing entire lodash library
+import './App.css';
+import ArticleItem from './ArticleItem';
+
+// Unoptimized large image
+import heroImage from './assets/hero.jpg';
 
 function App() {
-  const [count, setCount] = useState(0)
+  const [articles, setArticles] = useState([]);
+  const [filterQuery, setFilterQuery] = useState('');
+  const [sortOrder, setSortOrder] = useState('none');
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchAllStories = async () => {
+      setLoading(true);
+      try {
+        const response = await fetch('https://hacker-news.firebaseio.com/v0/topstories.json');
+        const storyIds = await response.json();
+        const stories = [];
+        
+        // Anti-pattern: sequential fetching in a loop causing network waterfall
+        for (const id of storyIds.slice(0, 500)) {
+          const storyResp = await fetch(`https://hacker-news.firebaseio.com/v0/item/${id}.json`);
+          const storyData = await storyResp.json();
+          if (storyData) {
+            stories.push(storyData);
+          }
+        }
+        setArticles(stories);
+      } catch (error) {
+        console.error('Error fetching stories:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchAllStories();
+  }, []);
+
+  const handleFilterChange = (e) => {
+    setFilterQuery(e.target.value);
+  };
+
+  const handleSort = () => {
+    setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc');
+  };
+
+  // Anti-pattern: Expensive operation on every render due to lodash and rendering all items
+  let displayedArticles = articles;
+
+  if (filterQuery) {
+    displayedArticles = _.filter(displayedArticles, article => 
+      article.title && article.title.toLowerCase().includes(filterQuery.toLowerCase())
+    );
+  }
+
+  if (sortOrder !== 'none') {
+    displayedArticles = _.orderBy(displayedArticles, ['score'], [sortOrder]);
+  }
 
   return (
-    <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
-        </div>
-        <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.jsx</code> and save to test <code>HMR</code>
-          </p>
-        </div>
-        <button
-          type="button"
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
-        >
-          Count is {count}
+    <div className="App">
+      <header className="header">
+        <h1>HackerNews Aggregator</h1>
+      </header>
+      
+      {/* Anti-pattern: Unoptimized image missing attributes */}
+      <div className="hero-section">
+        <img src={heroImage} alt="Hero" className="hero-image" data-testid="hero-image" />
+      </div>
+
+      <div className="controls">
+        <input 
+          type="text" 
+          placeholder="Filter by title..." 
+          value={filterQuery} 
+          onChange={handleFilterChange}
+          className="filter-input"
+        />
+        <button onClick={handleSort} className="sort-button">
+          Sort by Score ({sortOrder})
         </button>
-      </section>
+      </div>
 
-      <div className="ticks"></div>
-
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
+      {loading ? (
+        <p className="loading">Loading 500 articles... This will take a while.</p>
+      ) : (
+        <div className="article-list" data-testid="article-list">
+          {/* Anti-pattern: Rendering 500 elements without virtualization */}
+          {displayedArticles.map(article => (
+            <ArticleItem key={article.id} article={article} />
+          ))}
         </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
-      </section>
-
-      <div className="ticks"></div>
-      <section id="spacer"></section>
-    </>
-  )
+      )}
+    </div>
+  );
 }
 
-export default App
+export default App;
