@@ -1,6 +1,6 @@
 import React, { memo } from 'react';
 
-// Optimization: Single formatter instance outside component to avoid recreation
+
 const dateFormatter = new Intl.DateTimeFormat('default', {
   year: 'numeric',
   month: 'numeric',
@@ -23,7 +23,7 @@ const ArticleItem = memo(({ article }) => {
       <div className="article-meta" style={{ display: 'flex', gap: '15px', fontSize: '0.9em', color: '#666' }}>
         <span>Score: {article.score}</span>
         <span>By: {article.by}</span>
-        {/* Optimization: Efficient date formatting */}
+        
         <span>Time: {dateFormatter.format(new Date(article.time * 1000))}</span>
       </div>
     </div>

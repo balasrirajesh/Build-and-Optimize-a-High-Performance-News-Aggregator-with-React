@@ -1,10 +1,9 @@
 import React, { useState, useEffect, useRef, useMemo, Suspense } from 'react';
-import filter from 'lodash/filter'; // Cherry-picked import
-import orderBy from 'lodash/orderBy'; // Cherry-picked import
+import filter from 'lodash/filter';
+import orderBy from 'lodash/orderBy';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import './App.css';
 
-// Lazy load the ArticleItem component
 const ArticleItem = React.lazy(() => import('./ArticleItem'));
 
 import heroImage from './assets/hero.jpg';
@@ -15,7 +14,6 @@ function App() {
   const [sortOrder, setSortOrder] = useState('none');
   const [loading, setLoading] = useState(true);
 
-  // Reference for the scrolling container
   const parentRef = useRef(null);
 
   useEffect(() => {
@@ -25,13 +23,13 @@ function App() {
         const response = await fetch('https://hacker-news.firebaseio.com/v0/topstories.json');
         const storyIds = await response.json();
         
-        // Optimization: Parallel network requests using Promise.all
+        
         const fetches = storyIds.slice(0, 500).map(id => 
           fetch(`https://hacker-news.firebaseio.com/v0/item/${id}.json`).then(res => res.json())
         );
         
         const stories = await Promise.all(fetches);
-        // Filter out any null responses
+        
         setArticles(stories.filter(Boolean));
       } catch (error) {
         console.error('Error fetching stories:', error);
@@ -50,7 +48,6 @@ function App() {
     setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc');
   };
 
-  // Optimization: Memoize the filtered and sorted list
   const displayedArticles = useMemo(() => {
     let result = articles;
     if (filterQuery) {
@@ -64,11 +61,10 @@ function App() {
     return result;
   }, [articles, filterQuery, sortOrder]);
 
-  // Optimization: Virtualization setup
   const virtualizer = useVirtualizer({
     count: displayedArticles.length,
     getScrollElement: () => parentRef.current,
-    estimateSize: () => 100, // Estimated height of each item
+    estimateSize: () => 100,
     overscan: 5,
   });
 
@@ -78,7 +74,6 @@ function App() {
         <h1>HackerNews Aggregator</h1>
       </header>
       
-      {/* Optimization: Add explicit dimensions and srcset to hero image */}
       <div className="hero-section">
         <img 
           src={heroImage} 
@@ -89,7 +84,7 @@ function App() {
           height="800"
           srcSet={`${heroImage} 1200w`}
           sizes="100vw"
-          loading="eager" // Hero image should be eager, but off-screen images should be lazy
+          loading="eager"
           fetchpriority="high"
         />
       </div>
