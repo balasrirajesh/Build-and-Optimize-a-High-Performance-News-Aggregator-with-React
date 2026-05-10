@@ -1,32 +1,35 @@
-import React from 'react';
+import React, { memo } from 'react';
 
-// Anti-pattern: Expensive date formatting calculation on every render without memoization
-const formatDate = (timestamp) => {
-  // Simulating an expensive operation
-  let result = new Date(timestamp * 1000).toLocaleString();
-  for (let i = 0; i < 10000; i++) {
-    result = new Date(timestamp * 1000).toLocaleString();
-  }
-  return result;
-};
+// Optimization: Single formatter instance outside component to avoid recreation
+const dateFormatter = new Intl.DateTimeFormat('default', {
+  year: 'numeric',
+  month: 'numeric',
+  day: 'numeric',
+  hour: 'numeric',
+  minute: 'numeric',
+  second: 'numeric'
+});
 
-const ArticleItem = ({ article }) => {
+const ArticleItem = memo(({ article }) => {
   if (!article) return null;
 
   return (
-    <div className="article-item" data-testid="article-item">
-      <h3>
+    <div className="article-item" data-testid="article-item" style={{ height: '100%', boxSizing: 'border-box' }}>
+      <h3 style={{ margin: '0 0 5px 0', fontSize: '1.1em', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
         <a href={article.url} target="_blank" rel="noopener noreferrer">
           {article.title}
         </a>
       </h3>
-      <div className="article-meta">
+      <div className="article-meta" style={{ display: 'flex', gap: '15px', fontSize: '0.9em', color: '#666' }}>
         <span>Score: {article.score}</span>
         <span>By: {article.by}</span>
-        <span>Time: {formatDate(article.time)}</span>
+        {/* Optimization: Efficient date formatting */}
+        <span>Time: {dateFormatter.format(new Date(article.time * 1000))}</span>
       </div>
     </div>
   );
-};
+});
+
+ArticleItem.displayName = 'ArticleItem';
 
 export default ArticleItem;

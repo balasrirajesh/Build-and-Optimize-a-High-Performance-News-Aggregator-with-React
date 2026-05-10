@@ -1,9 +1,12 @@
-import React, { useState, useEffect } from 'react';
-import _ from 'lodash'; // Anti-pattern: importing entire lodash library
+import React, { useState, useEffect, useRef, useMemo, Suspense } from 'react';
+import filter from 'lodash/filter'; // Cherry-picked import
+import orderBy from 'lodash/orderBy'; // Cherry-picked import
+import { useVirtualizer } from '@tanstack/react-virtual';
 import './App.css';
-import ArticleItem from './ArticleItem';
 
-// Unoptimized large image
+// Lazy load the ArticleItem component
+const ArticleItem = React.lazy(() => import('./ArticleItem'));
+
 import heroImage from './assets/hero.jpg';
 
 function App() {
@@ -12,23 +15,24 @@ function App() {
   const [sortOrder, setSortOrder] = useState('none');
   const [loading, setLoading] = useState(true);
 
+  // Reference for the scrolling container
+  const parentRef = useRef(null);
+
   useEffect(() => {
     const fetchAllStories = async () => {
       setLoading(true);
       try {
         const response = await fetch('https://hacker-news.firebaseio.com/v0/topstories.json');
         const storyIds = await response.json();
-        const stories = [];
         
-        // Anti-pattern: sequential fetching in a loop causing network waterfall
-        for (const id of storyIds.slice(0, 500)) {
-          const storyResp = await fetch(`https://hacker-news.firebaseio.com/v0/item/${id}.json`);
-          const storyData = await storyResp.json();
-          if (storyData) {
-            stories.push(storyData);
-          }
-        }
-        setArticles(stories);
+        // Optimization: Parallel network requests using Promise.all
+        const fetches = storyIds.slice(0, 500).map(id => 
+          fetch(`https://hacker-news.firebaseio.com/v0/item/${id}.json`).then(res => res.json())
+        );
+        
+        const stories = await Promise.all(fetches);
+        // Filter out any null responses
+        setArticles(stories.filter(Boolean));
       } catch (error) {
         console.error('Error fetching stories:', error);
       } finally {
@@ -46,18 +50,27 @@ function App() {
     setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc');
   };
 
-  // Anti-pattern: Expensive operation on every render due to lodash and rendering all items
-  let displayedArticles = articles;
+  // Optimization: Memoize the filtered and sorted list
+  const displayedArticles = useMemo(() => {
+    let result = articles;
+    if (filterQuery) {
+      result = filter(result, article => 
+        article.title && article.title.toLowerCase().includes(filterQuery.toLowerCase())
+      );
+    }
+    if (sortOrder !== 'none') {
+      result = orderBy(result, ['score'], [sortOrder]);
+    }
+    return result;
+  }, [articles, filterQuery, sortOrder]);
 
-  if (filterQuery) {
-    displayedArticles = _.filter(displayedArticles, article => 
-      article.title && article.title.toLowerCase().includes(filterQuery.toLowerCase())
-    );
-  }
-
-  if (sortOrder !== 'none') {
-    displayedArticles = _.orderBy(displayedArticles, ['score'], [sortOrder]);
-  }
+  // Optimization: Virtualization setup
+  const virtualizer = useVirtualizer({
+    count: displayedArticles.length,
+    getScrollElement: () => parentRef.current,
+    estimateSize: () => 100, // Estimated height of each item
+    overscan: 5,
+  });
 
   return (
     <div className="App">
@@ -65,9 +78,20 @@ function App() {
         <h1>HackerNews Aggregator</h1>
       </header>
       
-      {/* Anti-pattern: Unoptimized image missing attributes */}
+      {/* Optimization: Add explicit dimensions and srcset to hero image */}
       <div className="hero-section">
-        <img src={heroImage} alt="Hero" className="hero-image" data-testid="hero-image" />
+        <img 
+          src={heroImage} 
+          alt="News Hero" 
+          className="hero-image" 
+          data-testid="hero-image"
+          width="1200"
+          height="800"
+          srcSet={`${heroImage} 1200w`}
+          sizes="100vw"
+          loading="eager" // Hero image should be eager, but off-screen images should be lazy
+          fetchpriority="high"
+        />
       </div>
 
       <div className="controls">
@@ -84,13 +108,43 @@ function App() {
       </div>
 
       {loading ? (
-        <p className="loading">Loading 500 articles... This will take a while.</p>
+        <p className="loading">Loading 500 articles in parallel...</p>
       ) : (
-        <div className="article-list" data-testid="article-list">
-          {/* Anti-pattern: Rendering 500 elements without virtualization */}
-          {displayedArticles.map(article => (
-            <ArticleItem key={article.id} article={article} />
-          ))}
+        <div 
+          ref={parentRef} 
+          className="article-list-container" 
+          style={{ height: '600px', overflow: 'auto', border: '1px solid #ccc', borderRadius: '8px' }}
+        >
+          <div 
+            className="article-list" 
+            data-testid="article-list"
+            style={{
+              height: `${virtualizer.getTotalSize()}px`,
+              width: '100%',
+              position: 'relative',
+            }}
+          >
+            <Suspense fallback={<div>Loading component...</div>}>
+              {virtualizer.getVirtualItems().map((virtualItem) => {
+                const article = displayedArticles[virtualItem.index];
+                return (
+                  <div
+                    key={virtualItem.key}
+                    style={{
+                      position: 'absolute',
+                      top: 0,
+                      left: 0,
+                      width: '100%',
+                      height: `${virtualItem.size}px`,
+                      transform: `translateY(${virtualItem.start}px)`,
+                    }}
+                  >
+                    <ArticleItem article={article} />
+                  </div>
+                );
+              })}
+            </Suspense>
+          </div>
         </div>
       )}
     </div>
